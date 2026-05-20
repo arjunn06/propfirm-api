@@ -16,7 +16,7 @@ export async function GET() {
     })
   }
 
-  const markets =
+  const uniqueMarkets =
     [...new Set(
       data.map(
         item => item.market_type
@@ -24,6 +24,14 @@ export async function GET() {
     )]
 
   return NextResponse.json({
-    markets
+
+    market1:
+      uniqueMarkets[0] || "",
+
+    market2:
+      uniqueMarkets[1] || "",
+
+    market3:
+      uniqueMarkets[2] || ""
   })
 }
