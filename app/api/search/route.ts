@@ -237,15 +237,31 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
 
-      best,
+  firm_name:
+    best.firm_name,
 
-      alternatives:
-        withFinalPrices.slice(1, 4),
+  account_name:
+    best.account_name,
 
-      updated_at:
-        new Date().toISOString()
-    })
+  account_size:
+    best.account_size,
 
+  discount_percent:
+    best.discount_percent,
+
+  final_price:
+    best.final_price,
+
+  promo_code:
+    best.promo_code,
+
+  affiliate_link:
+    best.affiliate_link,
+
+  updated_at:
+    new Date().toISOString()
+})
+    
   } catch (err) {
 
     console.error(err)
