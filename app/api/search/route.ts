@@ -3,170 +3,257 @@ import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
 
-  const { searchParams } =
-    new URL(req.url)
+  try {
 
-  const market =
-    searchParams.get("market")
+    // =====================
+    // GET QUERY PARAMS
+    // =====================
 
-  const size =
-    searchParams.get("size")
+    const { searchParams } =
+      new URL(req.url)
 
-  const activation =
-    searchParams.get("activation")
+    const market =
+      searchParams.get("market")
 
-  const { data, error } =
-    await supabase
-      .from("offers")
-      .select("*")
-      .eq("active", true)
+    const size =
+      searchParams.get("size")
 
-  if (error) {
+    const activation =
+      searchParams.get("activation")
 
-    return NextResponse.json({
+    console.log("QUERY:", {
 
-      error: error.message
+      market,
+      size,
+      activation
     })
-  }
-
-  const filtered = data.filter((offer) => {
 
     // =====================
-    // MARKET MATCH
+    // FETCH DATA
     // =====================
 
-    const marketMatch =
+    const { data, error } =
 
-      offer.market_type
-        ?.toLowerCase()
+      await supabase
 
-      ===
+        .from("offers")
 
-      market?.toLowerCase()
+        .select("*")
 
-    // =====================
-    // SIZE MATCH
-    // =====================
+        .eq("active", true)
 
-    const sizeMatch =
+    if (error) {
 
-      size === "any"
+      console.error(error)
 
-      ||
+      return NextResponse.json({
 
-      String(
-        offer.account_size
-      )
+        error:
+          error.message
+      })
+    }
 
-      ===
-
-      String(size)
+    console.log("RAW DATA:", data)
 
     // =====================
-    // ACTIVATION MATCH
+    // FILTER
     // =====================
 
-    const activationMatch =
+    const filtered =
 
-      String(
-        offer.activation_fee
-      )
+      data.filter((offer) => {
 
-      ===
+        const dbMarket =
 
-      String(
-        activation === "true"
-      )
+          String(
+            offer.market_type
+          )
 
-    return (
+            .trim()
 
-      marketMatch
+            .toLowerCase()
 
-      &&
+        const incomingMarket =
 
-      sizeMatch
+          String(market)
 
-      &&
+            .trim()
 
-      activationMatch
-    )
-  })
+            .toLowerCase()
 
-  console.log(filtered)
+        const dbSize =
 
-  // =====================
-  // NO RESULTS
-  // =====================
+          String(
+            offer.account_size
+          )
 
-  if (filtered.length === 0) {
+            .replace(/k/i, "000")
 
-    return NextResponse.json({
+            .trim()
 
-      error:
-        "No matching firms found"
-    })
-  }
+        const incomingSize =
 
-  // =====================
-  // FINAL PRICE
-  // =====================
+          String(size)
 
-  const withFinalPrices =
+            .replace(/k/i, "000")
 
-    filtered.map(offer => {
+            .trim()
 
-      const final_price =
+        const dbActivation =
 
-        Number(offer.mrp)
+          String(
+            offer.activation_fee
+          )
 
-        -
+            .trim()
 
-        (
+            .toLowerCase()
+
+        const incomingActivation =
+
+          String(activation)
+
+            .trim()
+
+            .toLowerCase()
+
+        const marketMatch =
+
+          dbMarket ===
+          incomingMarket
+
+        const sizeMatch =
+
+          incomingSize === "any"
+
+          ||
+
+          dbSize ===
+          incomingSize
+
+        const activationMatch =
+
+          dbActivation ===
+          incomingActivation
+
+        console.log({
+
+          dbMarket,
+          incomingMarket,
+
+          dbSize,
+          incomingSize,
+
+          dbActivation,
+          incomingActivation,
+
+          marketMatch,
+          sizeMatch,
+          activationMatch
+        })
+
+        return (
+
+          marketMatch
+
+          &&
+
+          sizeMatch
+
+          &&
+
+          activationMatch
+        )
+      })
+
+    console.log("FILTERED:", filtered)
+
+    // =====================
+    // NO RESULTS
+    // =====================
+
+    if (filtered.length === 0) {
+
+      return NextResponse.json({
+
+        error:
+          "No matching firms found"
+      })
+    }
+
+    // =====================
+    // CALCULATE FINAL PRICE
+    // =====================
+
+    const withFinalPrices =
+
+      filtered.map((offer) => {
+
+        const mrp =
           Number(offer.mrp)
 
-          *
-
+        const discount =
           Number(
             offer.discount_percent
           )
 
-          / 100
-        )
+        const final_price =
 
-      return {
+          mrp -
 
-        ...offer,
+          (
+            mrp * discount / 100
+          )
 
-        final_price
-      }
+        return {
+
+          ...offer,
+
+          final_price
+        }
+      })
+
+    // =====================
+    // SORT BY CHEAPEST
+    // =====================
+
+    withFinalPrices.sort(
+
+      (a, b) =>
+
+        a.final_price
+
+        -
+
+        b.final_price
+    )
+
+    const best =
+      withFinalPrices[0]
+
+    // =====================
+    // RESPONSE
+    // =====================
+
+    return NextResponse.json({
+
+      best,
+
+      alternatives:
+        withFinalPrices.slice(1, 4),
+
+      updated_at:
+        new Date().toISOString()
     })
 
-  // =====================
-  // SORT CHEAPEST
-  // =====================
+  } catch (err) {
 
-  withFinalPrices.sort(
+    console.error(err)
 
-    (a, b) =>
+    return NextResponse.json({
 
-      a.final_price
-
-      -
-
-      b.final_price
-  )
-
-  const best =
-    withFinalPrices[0]
-
-  return NextResponse.json({
-
-    best,
-
-    alternatives:
-      withFinalPrices.slice(1, 4),
-
-    updated_at:
-      new Date().toISOString()
-  })
+      error:
+        "Internal server error"
+    })
+  }
 }
